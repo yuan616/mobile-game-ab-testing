@@ -1,0 +1,59 @@
+/*
+Project: Mobile Game A/B Testing Analysis
+Database: SQLite
+Author: yuan
+Description: This script analyzes the impact of moving the first gate from level 30 to 40 on player retention.
+*/
+
+-- =============================================
+-- Step 1: Data Validation (Check Sample Size)
+-- Goal: Ensure the A/B test groups (gate_30 vs gate_40) are balanced.
+-- =============================================
+SELECT 
+    version, 
+    COUNT(userid) AS user_count
+FROM cookie_cats
+GROUP BY version;
+
+
+-- =============================================
+-- Step 2: Data Cleaning (Outlier Detection)
+-- Goal: Identify users with unrealistic game rounds (potential bots/test accounts).
+-- Note: Using CAST because 'sum_gamerounds' was imported as TEXT.
+-- =============================================
+SELECT 
+    userid, 
+    sum_gamerounds 
+FROM cookie_cats 
+ORDER BY CAST(sum_gamerounds AS INTEGER) DESC 
+LIMIT 5;
+
+-- Result: Found User ID '6390605' with 49,854 rounds. This is an outlier.
+
+
+-- =============================================
+-- Step 3: Engagement Analysis (Average Game Rounds)
+-- Goal: Compare activity levels between groups, EXCLUDING the outlier.
+-- =============================================
+SELECT 
+    version, 
+    AVG(CAST(sum_gamerounds AS INTEGER)) AS avg_rounds
+FROM cookie_cats
+WHERE userid != '6390605'  -- Removing the outlier
+GROUP BY version;
+
+
+-- =============================================
+-- Step 4: Retention Analysis (The Key Metric)
+-- Goal: Calculate 1-Day and 7-Day Retention Rates.
+-- Note: Converted 'TRUE'/'FALSE' strings to 1/0 for calculation.
+-- =============================================
+SELECT 
+    version,
+    -- Calculate 1-Day Retention Rate
+    ROUND(SUM(CASE WHEN retention_1 = 'TRUE' THEN 1 ELSE 0 END) * 100.0 / COUNT(userid), 2) AS retention_1_rate,
+    
+    -- Calculate 7-Day Retention Rate
+    ROUND(SUM(CASE WHEN retention_7 = 'TRUE' THEN 1 ELSE 0 END) * 100.0 / COUNT(userid), 2) AS retention_7_rate
+FROM cookie_cats
+GROUP BY version;
